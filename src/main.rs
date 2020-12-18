@@ -68,10 +68,10 @@ fn find_matching<'a>(
     let mut counter = 0;
     let (start, end) = brackets;
     for (i, item) in iter.enumerate() {
-        if item == &start {
+        if *item == start {
             counter += 1;
         }
-        if item == &end {
+        if *item == end {
             counter -= 1;
         }
         if counter == 0 {
