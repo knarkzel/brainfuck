@@ -1,36 +1,33 @@
-#[derive(Debug)]
-struct State {
+use std::io::Read;
+use std::matches;
+
+struct Brainfuck {
     memory: [u8; 2usize.pow(16)],
     instructions: Vec<char>,
     data_pointer: usize,
     instruction_pointer: usize,
 }
 
-impl State {
-    fn new() -> Self {
-        State {
+impl Brainfuck {
+    fn new<P: AsRef<std::path::Path>>(path: P) -> Self {
+        let file = std::fs::read_to_string(path).expect("Failed to read file");
+        let instructions = file
+            .chars()
+            .filter(|c| matches!(c, '>' | '<' | '+' | '-' | ',' | '.' | '[' | ']'))
+            .collect();
+        Brainfuck {
             memory: [0; 2usize.pow(16)],
-            instructions: vec![],
+            instructions,
             data_pointer: 0,
             instruction_pointer: 0,
         }
     }
-    fn load<P: AsRef<std::path::Path>>(mut self, path: P) -> Self {
-        let file = std::fs::read_to_string(path).expect("Failed to read file");
-        self.instructions = file
-            .trim()
-            .chars()
-            .filter_map(|c| match c {
-                '>' | '<' | '+' | '-' | ',' | '.' | '[' | ']' => Some(c),
-                _ => None,
-            })
-            .collect();
-        self
+    fn run(&mut self) {
+        while self.instruction_pointer < self.instructions.len() {
+            self.step();
+        }
     }
-    fn should_run(&self) -> bool {
-        self.instruction_pointer < self.instructions.len()
-    }
-    fn parse(&mut self) {
+    fn step(&mut self) {
         let command = self.instructions[self.instruction_pointer];
         let value = self.memory[self.data_pointer];
         match command {
@@ -38,55 +35,25 @@ impl State {
             '<' => self.data_pointer -= 1,
             '+' => self.memory[self.data_pointer] += 1,
             '-' => self.memory[self.data_pointer] -= 1,
-            ',' => {
-                self.memory[self.data_pointer] = self.instructions[self.instruction_pointer + 1] as u8;
-                self.instruction_pointer += 1;
-            }
             '.' => print!("{}", value as char),
+            ',' => {
+                let input = std::io::stdin().bytes().next();
+                if let Some(Ok(input)) = input {
+                    self.memory[self.data_pointer] = input;
+                }
+            }
             '[' => {
                 if value == 0 {
-                    let mut counter = 1;
-                    let mut slice = &self.instructions[self.instruction_pointer..];
-                    loop {
-                        let index = slice.iter().position(|c| c == &']').unwrap();
-                        counter += self.instructions[self.instruction_pointer..index]
-                            .iter()
-                            .map(|c| match c {
-                                '[' => 1,
-                                ']' => -1,
-                                _ => 0,
-                            })
-                            .sum::<isize>();
-                        if counter > 0 {
-                            slice = &self.instructions[index..];
-                        } else {
-                            self.instruction_pointer = index;
-                            break;
-                        }
-                    }
+                    let slice = &self.instructions[self.instruction_pointer..];
+                    let matching_bracket = find_matching(('[', ']'), &mut slice.iter());
+                    self.instruction_pointer += matching_bracket.unwrap();
                 }
             }
             ']' => {
                 if value != 0 {
-                    let mut counter = 1;
-                    let mut slice = &self.instructions[..self.instruction_pointer];
-                    loop {
-                        let index = slice.iter().rposition(|c| c == &'[').unwrap();
-                        counter += self.instructions[index..self.instruction_pointer]
-                            .iter()
-                            .map(|c| match c {
-                                '[' => -1,
-                                ']' => 1,
-                                _ => 0,
-                            })
-                            .sum::<isize>();
-                        if counter > 0 {
-                            slice = &self.instructions[..index];
-                        } else {
-                            self.instruction_pointer = index;
-                            break;
-                        }
-                    }
+                    let slice = &self.instructions[..self.instruction_pointer];
+                    let matching_bracket = find_matching((']', '['), &mut slice.iter().rev());
+                    self.instruction_pointer -= matching_bracket.unwrap();
                 }
             }
             _ => (),
@@ -95,9 +62,24 @@ impl State {
     }
 }
 
-fn main() {
-    let mut state = State::new().load("./input");
-    while state.should_run() {
-        state.parse();
+// returns offset of matching bracket's index from current index using slices
+fn find_matching<'a>(brackets: (char, char), iter: &mut impl Iterator<Item = &'a char>) -> Option<usize> {
+    let mut counter = 1;
+    for (i, item) in iter.enumerate() {
+        if item == &brackets.0 {
+            counter += 1;
+        }
+        if item == &brackets.1 {
+            counter -= 1;
+        }
+        if counter == 0 {
+            return Some(i + 1);
+        }
     }
+    None
+}
+
+fn main() {
+    let mut brainfuck = Brainfuck::new("./input");
+    brainfuck.run();
 }
