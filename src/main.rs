@@ -8,7 +8,7 @@ struct Brainfuck {
 }
 
 impl Brainfuck {
-    fn new<P: AsRef<std::path::Path>>(path: P) -> Self {
+    fn new(path: &String) -> Self {
         let file = std::fs::read_to_string(path).expect("Failed to read file");
         let instructions = file
             .chars()
@@ -21,6 +21,7 @@ impl Brainfuck {
             instruction_pointer: 0,
         }
     }
+
     fn step(&mut self) {
         let command = self.instructions[self.instruction_pointer];
         let value = self.memory[self.data_pointer].0;
@@ -54,6 +55,7 @@ impl Brainfuck {
         }
         self.instruction_pointer += 1;
     }
+
     fn run(&mut self) {
         while self.instruction_pointer < self.instructions.len() {
             self.step();
@@ -82,11 +84,8 @@ fn find_matching<'a>(
 }
 
 fn main() {
-    let path = std::env::args().skip(1).next();
-    if let Some(path) = path {
-        let mut brainfuck = Brainfuck::new(path);
-        brainfuck.run();
-    } else {
-        println!("Missing path to source file.");
+    match std::env::args().skip(1).next() {
+        Some(ref path) => Brainfuck::new(path).run(),
+        None => println!("Missing path to source file."),
     }
 }
